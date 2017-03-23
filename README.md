@@ -238,10 +238,10 @@ Help with Makefile for docker-compose came from this [gist](https://gist.github.
 ## License and Copyright
 See LICENSE for details.
 
-##Contributing
+## Contributing
 If you have a feature request or want to report a bug, we'd be happy to hear from you. Please raise an issue or fork the project and send a pull request.
 
-##Colophon
+## Colophon
 The project name, Clew, is taken from *clew*, meaning a ball of thread or yarn (from the Middle English clewe). Since the project is about looking at YARN, this seemed appropriate, and is reflected in the logo. we also hope that the project will give users a 'clue' about what is happening with their YARN installation(s).
 
 
