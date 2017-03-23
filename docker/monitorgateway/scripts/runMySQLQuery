@@ -1,0 +1,9 @@
+#!/bin/bash
+
+if [[ "${BL_TABLE}" == "" ]]; then
+  echo "Need to set BL_TABLE to latency table in MySQL";
+  exit 1
+fi
+
+mysql -B bl_latency -e "select cluster, date as dt, latency from ${BL_TABLE} where date >= date_add(curdate(), interval -8 day)"
+

@@ -1,0 +1,66 @@
+#!/bin/bash
+
+## Shell script which:
+##       -  Checks health (latency) of database and record result on how long it took
+##       -  Only runs if the previous instance is not running
+##
+## It is specified in, and called from, log_remote_beeline_latency.sh
+## It takes no arguments except optional -h which displays this help message and terminates
+##
+# -----------------------------------------------------------------------------------------------------------
+#
+prog="$0"
+me=$(basename "$prog")
+
+dohelp() {
+   grep '^##' "$prog" | sed -e 's/^##//' -e "s/_PROG_/$me/" 1>&2
+}
+
+if [ "$1" = "-h" ]; then
+   dohelp
+   exit
+fi
+
+USE_KERBEROS=@USEKERBEROS@
+
+BL_LOGFILE=@BLLOGFILE@
+BL_RESULTFILE=@BLRESULTFILE@
+BEELINE_QUERY_SCRIPT_PATH=@BEELINEQUERYSCRIPTPATH@
+KRB5CCNAME=@KRB5CCNAME@
+KEYTABFILE=@KTABFILE@
+K_USER=@KUSER@
+K_HOST=@KHOST@
+
+#Hard coded deliberately
+BEELINE_QUERY_SCRIPT=query_beeline_latency.sh
+
+function main_prog {
+   if [ "$USE_KERBEROS" = true ]; then
+      export KRB5CCNAME
+      kinit -kt ${KEYTABFILE} ${K_USER}@${K_HOST}
+   fi
+
+   "${BEELINE_QUERY_SCRIPT_PATH}/${BEELINE_QUERY_SCRIPT}"
+
+}
+
+# Only run if the previous processes completed
+if ps -ef | grep -v grep | grep ${BEELINE_QUERY_SCRIPT} ; then
+   echo Query "use default;" still running and not completed
+   exit
+fi
+
+TS="`date '+%Y-%m-%d %H:%M:%S'`"
+
+if main_prog
+then
+   #use tee to append to local file, if set, as well as send to stdout
+   if [ -n "${BL_RESULTFILE}" ]; then
+      echo "${TS}, `grep seconds $BL_LOGFILE | grep -Po 'affected \(\K[^ ]+'`" | tee -a ${BL_RESULTFILE}
+   else
+      echo "${TS}, `grep seconds $BL_LOGFILE | grep -Po 'affected \(\K[^ ]+'`"
+   fi
+else
+   echo Beeline query "use default;" did not complete sucessfully
+fi
+

@@ -1,0 +1,11 @@
+<configuration>
+    <property>
+        <name>dfs.safemode.threshold.pct</name>
+        <value>0</value>
+    </property>
+    <property>
+        <name>dfs.replication</name>
+        <value>1</value>
+    </property>
+</configuration>
+

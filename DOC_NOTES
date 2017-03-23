@@ -1,0 +1,12 @@
+To convert markdown README to pdf need to have installed Latex and pandoc
+
+On a Ubuntu system:
+sudo apt-get install texlive-latex-base
+sudo apt-get install pandoc
+sudo apt-get install texlive-fonts-recommended
+sudo apt-get install texlive-latex-extra
+
+Then convert like this:
+
+pandoc -V geometry:margin=1in README.md -o CLEW_README.pdf
+

@@ -1,0 +1,49 @@
+version: "3"
+
+services:
+  hive-server:
+    build:
+      context: ./hive-server
+      args:
+        - http_proxy
+        - https_proxy
+        - USERID
+    image: clew_hive-server:1.0
+    container_name: hive-server
+    volumes:
+      - historyserver-data:/hadoop/yarn/timeline
+      - ./tmp:/home/docker/.ssh
+      - ./hive-server/test_mr:/home/docker/test_mr
+    ports:
+      - "8088:8088"
+      - "10000:10000"
+      - "19888:19888"
+      - "2222:22"
+  monitorgateway:
+    build:
+      context: ./monitorgateway
+      args:
+        - http_proxy
+        - https_proxy
+        - USERID
+    image: clew_monitorgateway:1.0
+    container_name: monitorgateway
+    volumes:
+      - mysql:/var/lib/mysql
+      - ..:/home/monitor/clew
+      - ./tmp:/home/monitor/.ssh
+    environment:
+      - DB_USER=clustermon
+      - DB_PASS=clusterm0n
+      - DB_NAME=bl_latency
+    links:
+      - "hive-server"
+    ports:
+      - "3306:3306"
+      - "3838:3838"
+    depends_on:
+      - hive-server
+volumes:
+  historyserver-data:
+  mysql:
+

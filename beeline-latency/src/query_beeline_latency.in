@@ -1,0 +1,52 @@
+#!/bin/bash
+
+## Shell script which:
+##       -  Calls beeline with simple query and logs verbose output (including timing) to a log file
+##       -  Uses Kerberos authentication if required
+##
+## It is specified in, and called from, log_beeline_latency.sh
+## It takes no arguments except optional -h which displays this help message and terminates
+##
+# -----------------------------------------------------------------------------------------------------------
+#
+prog="$0"
+me=$(basename "$prog")
+
+dohelp() {
+   grep '^##' "$prog" | sed -e 's/^##//' -e "s/_PROG_/$me/" 1>&2
+}
+
+if [ "$1" = "-h" ]; then
+   dohelp
+   exit
+fi
+
+USE_KERBEROS=@USEKERBEROS@
+
+K_CACHEFILE=@KCACHEFILE@
+KEYTABFILE=@KTABFILE@
+K_USER=@KUSER@
+K_HOST=@KHOST@
+BEELINE_HOST=@BEELINEHOST@
+BEELINE_PORT=@BEELINEPORT@
+DB=@DB@
+PRINCIPAL=@PRINCIPAL@
+BL_LOGFILE=@BLLOGFILE@
+
+if [ "$USE_KERBEROS" = true ]; then
+   #If kerberos cache ticket does not exist then recreate it
+   file="${K_CACHEFILE}"
+   if [ ! -f "$file" ]; then
+      kinit -kt ${KEYTABFILE} ${K_USER}@${K_HOST}
+   fi
+fi
+
+#run the beeline query 'use default;' and send the output to file
+#When using kerberos authentication, must set principal as part of connection url
+
+if [ "$USE_KERBEROS" = true ]; then
+   beeline --showNestedErrs=true --showWarnings=true --verbose=true -u "jdbc:hive2://${BEELINE_HOST}:${BEELINE_PORT}/${DB};principal=${PRINCIPAL}" -e 'use default;' > ${BL_LOGFILE} 2>&1
+else
+   beeline --showNestedErrs=true --showWarnings=true --verbose=true -u "jdbc:hive2://${BEELINE_HOST}:${BEELINE_PORT}/${DB}" -e 'use default;' > ${BL_LOGFILE} 2>&1
+fi
+

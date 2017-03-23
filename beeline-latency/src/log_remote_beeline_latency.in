@@ -1,0 +1,80 @@
+#!/bin/bash
+
+## Shell script which:
+##       -  Reads a config file for remote cluster settings
+##       -  Calls script log_beeline_latency.sh on remote site(s) over ssh
+##       -  Parses returned output and updates a table in MySQL with timing result
+##
+## It is intended to be called from cron
+## It takes one optional argument, '-h', which displays this help message and terminates
+##
+# -----------------------------------------------------------------------------------------------------------
+#
+
+prog="$0"
+me=$(basename "$prog")
+
+dohelp() {
+   grep '^##' "$prog" | sed -e 's/^##//' -e "s/_PROG_/$me/" 1>&2
+}
+
+if [ "$1" = "-h" ]; then
+   dohelp
+   exit
+fi
+
+function abs_script_dir_path {
+  SOURCE=$(if [ -z "${BASH_SOURCE[0]}" ]; then echo $1; else echo ${BASH_SOURCE[0]}; fi)
+  while [ -h "$SOURCE" ]; do
+    DIR=$(cd -P $(dirname "$SOURCE") && pwd)
+    SOURCE=$(readlink "$SOURCE")
+    [[ $SOURCE != /* ]] && SOURCE="$DIR/$SOURCE"
+  done
+  DIR=$(cd -P $(dirname "$SOURCE") && pwd)
+  echo $DIR
+}
+
+#bash-safe way to get dir where this script resides
+#copes with different ways of calling, sym-links etc.
+DIR=$(abs_script_dir_path $0)
+
+#The name of the config file is hardcoded and expected to be in same directory as this script
+CONFIGFILE="$DIR/clusterconfig"
+
+MYSQL_DB=@MYSQLDB@
+
+if [ ! -e "$CONFIGFILE" ]; then
+   (>&2 echo "Config file $CONFIGFILE is missing, aborting.")
+   exit
+fi
+
+declare -a confArray
+let i=0 
+while read -r line; do
+  confArray[i]="${line}"
+  ((++i))
+done < "$CONFIGFILE"
+
+let i=0 
+while (( ${#confArray[@]} > i )); do
+  IFS_DEF=$IFS;IFS=','; CF=(${confArray[i++]}) IFS=$IFS_DEF;
+
+  SSH_USER=${CF[0]}
+  SSH_HOST=${CF[1]}
+  CLUSTER_NAME=${CF[2]}
+  MYSQL_TABLE=${CF[3]}
+  REMOTE_SCRIPT_PATH=${CF[4]}
+
+  echo "Running script on host $SSH_HOST for user $SSH_USER. Cluster is called $CLUSTER_NAME"
+
+  RESULT=$(ssh ${SSH_USER}@${SSH_HOST} ${REMOTE_SCRIPT_PATH} 2>/dev/null);
+  echo $RESULT;
+  IFS_DEF=$IFS;IFS=','; ADDR=($RESULT); IFS=$IFS_DEF;
+
+  #This assumes MySQL options file has been set up with [client] group to store
+  #username and password so as not to have these hardcoded into script
+  #See http://dev.mysql.com/doc/mysql/en/option-files.html
+  mysql ${MYSQL_DB} -e "insert into ${MYSQL_TABLE} values ( '${CLUSTER_NAME}','${ADDR[0]}', ${ADDR[1]} )"
+
+done
+

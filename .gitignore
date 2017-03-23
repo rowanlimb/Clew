@@ -1,0 +1,10 @@
+config.status
+config.log
+configure
+Makefile.in
+Makefile
+!docker/Makefile
+aclocal.m4
+autom4te.cache/
+install-sh
+missing

@@ -1,0 +1,436 @@
+#!/bin/bash
+
+#Copyright (c) 2017 BT Plc (www.btplc.com)
+#
+#You should have received a copy of the MIT license along with Clew.
+#If not, see https://opensource.org/licenses/MIT
+
+DASHBOARD_CONFIG_FILE=dashboard/config.yml
+
+#write out dashboard config file
+function write_dashboard_config {
+cat > $DASHBOARD_CONFIG_FILE <<EOF
+default:
+ 
+  dashboard_title: $dashboard_title
+
+  mr_jobhist_host_list: [$jobhistory_server_host_list]
+  mr_jobhist_port_list: [$jobhistory_server_port_list]
+ 
+  #Cluster config
+  num_clusters: $numclusters
+  cluster_name_list: [$cluster_name_list]
+  yarn_rm_host_list: [$yarn_rmhost_list]
+  yarn_rm_port_list: [$yarn_rmport_list]
+ 
+  #name of MySQL option group, as specified in my.cnf
+  mysql_option_group: $mysql_option_group
+  #list of table names in latency database, each is treated as a separate cluster which is being monitored
+  mysql_latency_table_list: [$mysql_table_list]
+  hive_currentlatency_alert_threshold: $hive_currentlatency_alert_threshold
+  hive_currentlatency_alert_colour: $hive_currentlatency_alert_colour
+  hive_currentlatency_warn_threshold: $hive_currentlatency_warn_threshold
+  hive_currentlatency_warn_colour: $hive_currentlatency_warn_colour
+  hive_currentlatency_ok_colour: $hive_currentlatency_ok_colour
+  hive_maxlatency_alert_threshold: $hive_maxlatency_alert_threshold
+  hive_maxlatency_alert_colour: $hive_maxlatency_alert_colour
+  hive_maxlatency_warn_threshold: $hive_maxlatency_warn_threshold
+  hive_maxlatency_warn_colour: $hive_maxlatency_warn_colour
+  hive_maxlatency_ok_colour: $hive_maxlatency_ok_colour
+ 
+  yarn_apps_pending_alert_threshold: $yarn_apps_pending_alert_threshold
+  yarn_apps_pending_warn_threshold: $yarn_apps_pending_warn_threshold
+ 
+  yarn_memreserved_alert_threshold: $yarn_mem_reserved_alert_threshold
+  yarn_memreserved_warn_threshold: $yarn_mem_reserved_warn_threshold
+ 
+  yarn_containers_pending_alert_threshold: $yarn_containers_pending_alert_threshold
+  yarn_containers_pending_warn_threshold: $yarn_containers_pending_warn_threshold
+ 
+  yarn_unhealthynodes_alert_threshold: $yarn_unhealthy_nodes_alert_threshold
+  yarn_unhealthynodes_warn_threshold: $yarn_unhealthy_nodes_warn_threshold
+ 
+  yarn_lostnodes_alert_threshold: $yarn_lost_nodes_alert_threshold
+  yarn_lostnodes_warn_threshold: $yarn_lost_nodes_warn_threshold
+ 
+  yarn_alert_colour: $yarn_alert_colour
+  yarn_warn_colour: $yarn_warn_colour
+  yarn_ok_colour: $yarn_ok_colour
+ 
+EOF
+}
+
+function dashboard_config {
+   echo "---------------------------------------------------------------"
+   echo "This script facilitates the configuration of the Shiny Dashboard code for your environment"
+   echo "by asking you a series of questions and creating the file 'config.yml'."
+   echo "Alternatively you create config.yml based on config.yml.template yourself and populate it"
+   echo "with the information required."
+   echo ""
+   echo "Default responses are shown in square brackets. Just pressing Enter will accept the default."
+   echo "When the response may be multiple words with spaces (such as a title) just enter the words"
+   echo "without quotes. All input up to pressing the Enter key will be read in."
+   echo "---------------------------------------------------------------"
+
+   if test -e "$DASHBOARD_CONFIG_FILE"; then
+      read -p "Warning: Shiny Dashboard config file already exists. Do you want to create new and overwrite)? [n]/Y " proceed
+      resp=${proceed:-n}
+      if [ $resp != "Y" ]; then
+         echo "Using existing config"
+         return
+      fi
+   fi
+   echo "OK, proceeding to create new app config file...."
+
+   default="Cluster Monitor"
+   read -p "Please enter the top level title for the dashboard [${default}] " title
+   dashboard_title="\"${title:-${default}}\""
+
+   default=1
+   read -p "Please enter the number of clusters to be monitored [${default}] " num
+   numclusters=${num:-${default}}
+
+   numnames=0
+   while [ $numnames -ne $numclusters ]; do
+      if [ "$numclusters" -eq 1 ]; then
+         read -p "Please enter the hostname or IP address for the MR JobHistory Server " mrhosts
+      else
+        read -p "Please enter a comma-separated list of hostnames or IP addresses for the MR JobHistory Server for each of the ${numclusters} clusters to be monitored e.g. name1,name2 " mrhosts
+      fi
+      IFS=',' read -r -a array <<< "${mrhosts}"
+      numnames=${#array[@]}
+   done
+      
+   jobhistory_server_host_list="\"${mrhosts//,/\",\"}\""
+      
+   numnames=0
+   while [ $numnames -ne $numclusters ]; do
+      if [ "$numclusters" -eq 1 ]; then
+         default=19888
+         read -p "Please enter the port number for the MR JobHistory Server [${default}] " mrports
+      else
+         default=19888,19888
+         read -p "Please enter a comma-separated list of port numbers for the MR JobHistory Server for each of the ${numclusters} clusters to be monitored [${default}] " mrports
+      fi
+      IFS=',' read -r -a array <<< "${mrports:-${default}}"
+      numnames=${#array[@]}
+   done
+      
+   jobhistory_server_port_list=${mrports:-${default}}
+      
+   numnames=0
+   while [ $numnames -ne $numclusters ]; do
+      if [ "$numclusters" -eq 1 ]; then
+         read -p "Please enter a name (to display in dashboard, does not have to be hostname) for the cluster to be monitored " cluster_names
+      else
+        read -p "Please enter a comma-separated list of names (to display in dashboard, does not have to be hostname) for each of the ${numclusters} clusters to be monitored e.g. name1,name2 " cluster_names
+      fi
+      IFS=',' read -r -a array <<< "${cluster_names}"
+      numnames=${#array[@]}
+   done
+      
+   cluster_name_list="\"${cluster_names//,/\",\"}\""
+     
+   numnames=0
+   while [ $numnames -ne $numclusters ]; do
+      if [ "$numclusters" -eq 1 ]; then
+         read -p "Please enter the Yarn ResourceManager hostname or IP address for the cluster to be monitored " cluster_rmhosts
+      else
+        read -p "Please enter a comma-separated list of the Yarn ResourceManager hostnames or IP addresses for each of the ${numclusters} clusters to be monitored e.g. host1,host2 " cluster_rmhosts
+      fi
+      IFS=',' read -r -a array <<< "${cluster_rmhosts}"
+      numnames=${#array[@]}
+   done
+      
+   yarn_rmhost_list="\"${cluster_rmhosts//,/\",\"}\""
+   
+   numnames=0
+   while [ $numnames -ne $numclusters ]; do
+      if [ "$numclusters" -eq 1 ]; then
+         default=8088
+         read -p "Please enter the Yarn ResourceManager port for the cluster to be monitored [${default}] " cluster_rmports
+      else
+         default=8088,8088
+         read -p "Please enter a comma-separated list of the Yarn ResourceManager ports for each of the ${numclusters} clusters to be monitored [${default}] " cluster_rmports
+      fi
+      IFS=',' read -r -a array <<< "${cluster_rmports:-${default}}"
+      numnames=${#array[@]}
+   done
+   
+   yarn_rmport_list=${cluster_rmports:-${default}}
+   
+   echo "It is expected that MySQL authentication will be via a .my.cnf file and that within this file will be a section ideintifed by a group name."
+   echo "Unless you need to include other groups, it is usually OK to accept the default for the next parameter."
+   
+   default=mysql
+   read -p "Please enter the MySQL option group name [${default}] " mysql_option_group
+   mysql_option_group="\"${mysql_option_group:-${default}}\""
+   
+   numnames=0
+   while [ $numnames -ne $numclusters ]; do
+      if [ "$numclusters" -eq 1 ]; then
+         read -p "Please enter the MySQL table name for the cluster to be monitored " mysqltables
+      else
+        read -p "Please enter a comma-separated list of MySQL table names for each of the ${numclusters} clusters to be monitored e.g. name1,name2 " mysqltables
+      fi
+      IFS=',' read -r -a array <<< "${mysqltables}"
+      numnames=${#array[@]}
+   done
+   
+   mysql_table_list="\"${mysqltables//,/\",\"}\""
+   
+   default=30
+   read -p "Please enter the alert threshold for Hive current latency [${default}] " h_curlat_alert_th
+   hive_currentlatency_alert_threshold=${h_curlat_alert_th:-${default}}
+   
+   default=red
+   read -p "Please enter the alert colour for Hive current latency [${default}] " h_curlat_alert_col
+   hive_currentlatency_alert_colour="\"${h_curlat_alert_col:-${default}}\""
+   
+   default=10
+   read -p "Please enter the warn threshold for Hive current latency [${default}] " h_curlat_warn_th
+   hive_currentlatency_warn_threshold=${h_curlat_warn_th:-${default}}
+   
+   default=orange
+   read -p "Please enter the warn colour for Hive current latency [${default}] " h_curlat_warn_col
+   hive_currentlatency_warn_colour="\"${h_curlat_warn_col:-${default}}\""
+   
+   default=green
+   read -p "Please enter the ok colour for Hive current latency [${default}] " h_curlat_ok_col
+   hive_currentlatency_ok_colour="\"${h_curlat_ok_col:-${default}}\""
+   
+   default=30
+   read -p "Please enter the alert threshold for Hive max latency [${default}] " h_maxlat_alert_th
+   hive_maxlatency_alert_threshold=${h_maxlat_alert_th:-${default}}
+   
+   default=red
+   read -p "Please enter the alert colour for Hive max latency [${default}] " h_maxlat_alert_col
+   hive_maxlatency_alert_colour="\"${h_maxlat_alert_col:-${default}}\""
+   
+   default=10
+   read -p "Please enter the warn threshold for Hive max latency [${default}] " h_maxlat_warn_th
+   hive_maxlatency_warn_threshold=${h_maxlat_warn_th:-${default}}
+   
+   default=orange
+   read -p "Please enter the warn colour for Hive max latency [${default}] " h_maxlat_warn_col
+   hive_maxlatency_warn_colour="\"${h_maxlat_warn_col:-${default}}\""
+   
+   default=green
+   read -p "Please enter the ok colour for Hive max latency [${default}] " h_maxlat_ok_col
+   hive_maxlatency_ok_colour="\"${h_maxlat_ok_col:-${default}}\""
+   
+   default=5
+   read -p "Please enter the alert threshold for yarn apps pending [${default}] " yarn_apps_pending_alert_th
+   yarn_apps_pending_alert_threshold=${yarn_apps_pending_alert_th:-${default}}
+   
+   default=0
+   read -p "Please enter the warn threshold for yarn apps pending [${default}] " yarn_apps_pending_warn_th
+   yarn_apps_pending_warn_threshold=${yarn_apps_pending_warn_th:-${default}}
+   
+   default=25
+   read -p "Please enter the alert threshold for yarn mem reserved [${default}] " yarn_mem_reserved_alert_th
+   yarn_mem_reserved_alert_threshold=${yarn_mem_reserved_alert_th:-${default}}
+   
+   default=0
+   read -p "Please enter the warn threshold for yarn mem reserved [${default}] " yarn_mem_reserved_warn_th
+   yarn_mem_reserved_warn_threshold=${yarn_mem_reserved_warn_th:-${default}}
+   
+   default=10
+   read -p "Please enter the alert threshold for yarn containers pending [${default}] " yarn_containers_pending_alert_th
+   yarn_containers_pending_alert_threshold=${yarn_containers_pending_alert_th:-${default}}
+   
+   default=0
+   read -p "Please enter the warn threshold for yarn containers pending [${default}] " yarn_containers_pending_warn_th
+   yarn_containers_pending_warn_threshold=${yarn_containers_pending_warn_th:-${default}}
+   
+   default=4
+   read -p "Please enter the alert threshold for yarn unhealthy nodes [${default}] " yarn_unhealthy_nodes_alert_th
+   yarn_unhealthy_nodes_alert_threshold=${yarn_unhealthy_nodes_alert_th:-${default}}
+   
+   default=0
+   read -p "Please enter the warn threshold for yarn unhealthy nodes [${default}] " yarn_unhealthy_nodes_warn_th
+   yarn_unhealthy_nodes_warn_threshold=${yarn_unhealthy_nodes_warn_th:-${default}}
+   
+   default=4
+   read -p "Please enter the alert threshold for yarn lost nodes [${default}] " yarn_lost_nodes_alert_th
+   yarn_lost_nodes_alert_threshold=${yarn_lost_nodes_alert_th:-${default}}
+   
+   default=0
+   read -p "Please enter the warn threshold for yarn lost nodes [${default}] " yarn_lost_nodes_warn_th
+   yarn_lost_nodes_warn_threshold=${yarn_lost_nodes_warn_th:-${default}}
+   
+   default=red
+   read -p "Please enter the alert colour for yarn thresholds [${default}] " yarn_alert_col
+   yarn_alert_colour="\"${yarn_alert_col:-${default}}\""
+   
+   default=orange
+   read -p "Please enter the warn colour for yarn thresholds [${default}] " yarn_warn_col
+   yarn_warn_colour="\"${yarn_warn_col:-${default}}\""
+   
+   default=green
+   read -p "Please enter the ok colour for yarn thresholds [${default}] " yarn_ok_col
+   yarn_ok_colour="\"${yarn_ok_col:-${default}}\""
+   
+   write_dashboard_config
+   
+}
+
+# ---------------------------------------------------------------------
+
+#These script names are not configurable, but the install dir is (bl_query_path)
+BEELINE_LOGGING_SCRIPTNAME=log_beeline_latency
+BEELINE_QUERY_SCRIPTNAME=query_beeline_latency
+REMOTE_LOGGING_SCRIPTNAME=log_remote_beeline_latency
+
+function create_bl_script_files {
+  mkdir -p beeline-latency/clusterscripts/${1}
+  do_subst='sed -e "s,[@]USEKERBEROS[@],${use_kerberos},g" \
+        -e "s,[@]KCACHEFILE[@],${k_cachefile},g" \
+        -e "s,[@]KTABFILE[@],${k_tabfile},g" \
+        -e "s,[@]KUSER[@],${k_user},g" \
+        -e "s,[@]KHOST[@],${k_host},g" \
+        -e "s,[@]PRINCIPAL[@],${k_principal},g" \
+        -e "s,[@]KRB5CCNAME[@],${k_ccname},g" \
+        -e "s,[@]BEELINEHOST[@],${bl_host},g" \
+        -e "s,[@]BEELINEPORT[@],${bl_port},g" \
+        -e "s,[@]DB[@],${bl_db},g" \
+        -e "s,[@]BLLOGFILE[@],${bl_latency_logfile},g" \
+        -e "s,[@]BLRESULTFILE[@],${bl_resultfile},g" \
+        -e "s,[@]BEELINEQUERYSCRIPTPATH[@],${bl_query_path},g"'
+
+  eval "$do_subst" < beeline-latency/src/${BEELINE_LOGGING_SCRIPTNAME}.in > beeline-latency/clusterscripts/${1}/${BEELINE_LOGGING_SCRIPTNAME}.sh
+  eval "$do_subst" < beeline-latency/src/${BEELINE_QUERY_SCRIPTNAME}.in > beeline-latency/clusterscripts/${1}/${BEELINE_QUERY_SCRIPTNAME}.sh
+  chmod +x beeline-latency/clusterscripts/${1}/*.sh
+}
+
+function bl_config {
+   echo "---------------------------------------------------------------"
+   echo "This script facilitates the configuration of the beeline latency logger code for your environment"
+   echo "by asking you a series of questions and creating the two scripts to be installed on each cluster."
+   echo "The script will create a separate directory FOR EACH CLUSTER YOU NEED TO MONITOR and create the scripts in that directory."
+   echo "This script also creates the script and config file which will be used to call the remote beeline "
+   echo "latency logging scripts"
+   echo ""
+   echo "Default responses are shown in square brackets. Just pressing Enter will accept the default."
+   echo "When the response may be multiple words with spaces (such as a title) just enter the words"
+   echo "without quotes. All input up to pressing the Enter key will be read in."
+   echo "---------------------------------------------------------------"
+
+   #Make sure read and understood message before continuing
+   resp=n
+   while [ "$resp" != "y" ]; do
+      read -p "Please enter y to continue " resp
+   done
+
+   #MySQL database name will be same for all clusters
+   default="bl_latency"
+   read -p "Please enter the name of the MySQL database (NOT table) [${default}] " resp
+   MYSQLDB="\"${resp:-${default}}\""
+   sed -e "s,[@]MYSQLDB[@],${MYSQLDB},g" < beeline-latency/src/${REMOTE_LOGGING_SCRIPTNAME}.in > beeline-latency/src/${REMOTE_LOGGING_SCRIPTNAME}.sh
+   chmod +x beeline-latency/src/${REMOTE_LOGGING_SCRIPTNAME}.sh
+
+   numclusters=$(grep num_clusters ${DASHBOARD_CONFIG_FILE} | awk '{print $NF}')
+   cluster_name_list=$(grep cluster_name_list ${DASHBOARD_CONFIG_FILE} | awk '{print $NF}' | tr -d '[]' | tr -d '"')
+   cluster_host_list=$(grep yarn_rm_host_list ${DASHBOARD_CONFIG_FILE} | awk '{print $NF}' | tr -d '[]' | tr -d '"')
+   mysql_table_list=$(grep mysql_latency_table_list ${DASHBOARD_CONFIG_FILE} | awk '{print $NF}' | tr -d '[]' | tr -d '"')
+
+   IFS=',' read -r -a namearray <<< $cluster_name_list
+   IFS=',' read -r -a hostarray <<< $cluster_host_list
+   IFS=',' read -r -a tablearray <<< $mysql_table_list
+   
+   if [ ${#namearray[@]} -ne ${#hostarray[@]} ]; then
+      echo "ERROR: length of cluster name list and cluster host list do not agree in $DASHBOARD_CONFIG_FILE"
+      exit 1
+   fi
+   
+   CLUSTER_CONFIG=beeline-latency/src/clusterconfig
+   #Need to remove old CLUSTER_CONFIG because it is created by appending in a loop
+   #So if not removed, new values would be added to, rather than replace old values
+   if [ -e "${CLUSTER_CONFIG}" ]; then
+     rm ${CLUSTER_CONFIG}
+   fi
+
+   for (( CNUM=0; CNUM<$(( ${#namearray[@]})); CNUM++ )) do
+      CNAME=${namearray[$CNUM]}
+      if [ -d "beeline-latency/src/${CNAME}" ]; then
+         read -p "Warning: cluster script dir ${CNAME} already exists. Do you want to create new (and overwrite) these file(s)? [n]/Y " proceed
+         if [ $resp != "Y" ]; then
+            continue;
+         fi
+      fi
+      echo "Creating config for cluster ${CNAME}:"
+   
+      default=${mysql_table_list[$CNUM]}
+      read -p "Please enter the MySQL table name [${default}] " resp
+      dbtablename="${resp:-${default}}"
+   
+      default=remote_user
+      read -p "Please enter username of account that will run the script on cluster (e.g. ${default}) " resp
+      remote_user=${resp}
+   
+      default="/home/${remote_user}/beeline_latency"
+      read -p "Please enter full path to folder for scripts which will be installed on cluster [${default}] " resp
+      bl_query_path="${resp:-${default}}"
+   
+      echo "${remote_user},${hostarray[$CNUM]},${CNAME},${dbtablename},${bl_query_path}/${BEELINE_LOGGING_SCRIPTNAME}.sh" >> ${CLUSTER_CONFIG}
+   
+      default=false
+      read -p "If using KERBEROS authentication for this cluster, enter true, else enter false [${default}] " resp
+      use_kerberos=${resp:-${default}}
+   
+      if [ "$use_kerberos" = "true" ]; then
+         read -p "Please enter full path to Kerberos cache file for this cluster " k_cachefile
+         read -p "Please enter full path to Kerberos keytab file for this cluster " k_tabfile
+         read -p "Please enter Kerberos username for this cluster " k_user
+         read -p "Please enter Kerberos host (FQDN) for this cluster " k_host
+         read -p "Please enter Kerberos principal for this user on this cluster " k_principal
+         read -p "Please enter value for Kerberos KRB5CCNAME env. variable on this cluster " k_ccname
+      else
+         k_cachefile=""
+         k_tabfile=""
+         k_user=""
+         k_host=""
+         k_principal=""
+         k_ccname=""
+      fi
+   
+      default=localhost
+      read -p "Please enter hostname (or IP Address) for Hive on cluster [${default}] " resp
+      bl_host=${resp:-${default}}
+   
+      default=10000
+      read -p "Please enter Hive/beeline port on $bl_host on cluster [${default}] " resp
+      bl_port=${resp:-${default}}
+   
+      default=default
+      read -p "Please enter Hive default database name on cluster [${default}] " resp
+      bl_db="${resp:-${default}}"
+   
+      default=bl_latency.log
+      read -p "Please enter name for latency logging log file which will be installed on cluster [${default}] " resp
+      bl_latency_logfile="${bl_query_path}/${resp:-${default}}"
+   
+      resp=n
+      read -p "Do you want to capture latency results in a file? This is not necessary for correct working, it is just an additional log file of results. [n]/Y " resp
+      if [ "$resp" = "Y" ]; then
+         default=bl_results.log
+         read -p "Please enter name for latency results log file which will be installed on cluster [${default}] " resp
+         bl_resultfile="${bl_query_path}/${resp:-${default}}"
+      else
+         bl_resultfile=
+      fi 
+      create_bl_script_files $CNAME
+   
+   done
+
+}
+
+if [ "$1" = "dashboard" ]; then
+   dashboard_config
+fi
+if [ "$1" = "beeline" ]; then
+   bl_config
+fi
+
+exit
+

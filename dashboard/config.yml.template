@@ -1,0 +1,47 @@
+default:
+ 
+  dashboard_title: "Cluster Monitor"
+
+  mr_jobhist_host_list: ["host1","host2"]
+  mr_jobhist_port_list: [19888,19888]
+ 
+  #Cluster config
+  num_clusters: 2
+  cluster_name_list: ["name1","name2"]
+  yarn_rm_host_list: ["host1","host2"]
+  yarn_rm_port_list: [8088,8088]
+ 
+  #name of MySQL option group, as specified in my.cnf
+  mysql_option_group: "mysql"
+  #list of table names in latency database, each is treated as a separate cluster which is being monitored
+  mysql_latency_table_list: ["latency_table1","latency_table2"]
+  hive_currentlatency_alert_threshold: 30
+  hive_currentlatency_alert_colour: "red"
+  hive_currentlatency_warn_threshold: 10
+  hive_currentlatency_warn_colour: "orange"
+  hive_currentlatency_ok_colour: "green"
+  hive_maxlatency_alert_threshold: 30
+  hive_maxlatency_alert_colour: "red"
+  hive_maxlatency_warn_threshold: 10
+  hive_maxlatency_warn_colour: "orange"
+  hive_maxlatency_ok_colour: "green"
+ 
+  yarn_apps_pending_alert_threshold: 5
+  yarn_apps_pending_warn_threshold: 0
+ 
+  yarn_memreserved_alert_threshold: 25
+  yarn_memreserved_warn_threshold: 0
+ 
+  yarn_containers_pending_alert_threshold: 10
+  yarn_containers_pending_warn_threshold: 0
+ 
+  yarn_unhealthynodes_alert_threshold: 4
+  yarn_unhealthynodes_warn_threshold: 0
+ 
+  yarn_lostnodes_alert_threshold: 4
+  yarn_lostnodes_warn_threshold: 0
+ 
+  yarn_alert_colour: "red"
+  yarn_warn_colour: "orange"
+  yarn_ok_colour: "green"
+ 

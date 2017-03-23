@@ -1,0 +1,9 @@
+#!/bin/bash
+
+if [[ "${BL_TABLE}" == "" ]]; then
+  echo "Need to set BL_TABLE to latency table in MySQL";
+  exit 1
+fi
+
+mysql bl_latency -e "create table if not exists ${BL_TABLE}(cluster varchar(20), date varchar(25), latency float)"
+

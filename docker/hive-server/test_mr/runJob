@@ -1,0 +1,24 @@
+#!/bin/bash
+
+ROOTDIR=zoodata
+
+echo "prechecks..."
+#first check if paths and input file have been set up. Do init if not
+if ! $(hdfs dfs -test -e ${ROOTDIR}/input/zoo.csv); then
+  hdfs dfs -mkdir -p ${ROOTDIR}/input;
+  hdfs dfs -put $(dirname $0)/zoo.csv ${ROOTDIR}/input;
+fi
+
+echo "removing previous results..."
+#remove previous output dir if it exists
+hdfs dfs -rm -R ${ROOTDIR}/output 2> /dev/null
+
+echo "running job..."
+hadoop jar /usr/local/hadoop/share/hadoop/tools/lib/hadoop-streaming-2.6.0.jar -files $(dirname $0)/mapper.py,$(dirname $0)/reducer.py -input ${ROOTDIR}/input -output ${ROOTDIR}/output -mapper mapper.py -reducer reducer.py
+
+if [ $? == 0 ]; then
+   printf "Count of animals having feathers (yes/no):\n$(hdfs dfs -cat ${ROOTDIR}/output/part*)\n"
+else
+   echo "MR job failed"
+fi
+

@@ -1,0 +1,3 @@
+This is a dummy file which Shiny Server will check
+An application can be restarted by altering the "modified time" on a file named restart.txt in the application's directory. This can most easily be done using the touch utility, as in touch restart.txt, which will update the modified timestamp on this file to the current time. Upon the next new connection to the application, Shiny Server will spawn a new R process to run the "new" (restarted) Shiny Application for this and future users. When this occurs, the old processes will remain unaltered, and open connections will remain active and valid until the last connection closes itself.
+

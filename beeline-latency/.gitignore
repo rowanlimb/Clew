@@ -1,0 +1,4 @@
+src/*.sh
+src/clusterconfig
+crontab_file
+clusterscripts
